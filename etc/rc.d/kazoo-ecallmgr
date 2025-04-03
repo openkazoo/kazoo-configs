@@ -1,0 +1,135 @@
+#!/bin/sh
+
+# PROVIDE: kazoo_ecallmgr
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="kazoo_ecallmgr"
+vm_name="ecallmgr"
+rcvar="kazoo_ecallmgr_enable"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+restart_cmd="${name}_restart"
+status_cmd="${name}_status"
+ping_cmd="${name}_ping"
+connect_cmd="${name}_connect"
+attach_cmd="${name}_attach"
+extra_commands="ping connect attach"
+
+: ${kazoo_ecallmgr_enable:="NO"}
+: ${kazoo_ecallmgr_user="kazoo"}
+: ${kazoo_ecallmgr_erl_flags=""}
+: ${kazoo_ecallmgr_chdir="/usr/local/kazoo"}
+
+command="/usr/local/kazoo/bin/kazoo"
+pidfile="/var/run/kazoo/${vm_name}.pid"
+daemonpidfile="/var/run/kazoo/${vm_name}-daemon.pid"
+startscript="/usr/local/kazoo/bin/kazoo"
+supcommand="/usr/local/bin/sup"
+
+kazoo_ecallmgr_start()
+{
+    echo -n "Starting ${name}: "
+    /usr/sbin/daemon -f -p ${pidfile} \
+        -P ${daemonpidfile} \
+        -t ${vm_name} \
+        -u "${kazoo_ecallmgr_user}" \
+        env ERL_FLAGS="${kazoo_ecallmgr_erl_flags}" \
+        HOME=/usr/local/kazoo \
+        CODE_LOADING_MODE=interactive \
+        ERL_CRASH_DUMP="/var/log/kazoo/$(date +%s)_${vm_name}_erl_crash.dump" \
+        VMARGS_PATH="/usr/local/etc/kazoo/${vm_name}.vm.args" \
+        RELX_CONFIG_PATH="/usr/local/etc/kazoo/${vm_name}.config" \
+        ${command} foreground
+    echo "started"
+}
+
+kazoo_ecallmgr_stop()
+{
+    echo -n "Stopping ${name}: "
+    retval=0
+    if ! (/bin/pgrep -ifU "${kazoo_ecallmgr_user}" "\-name ${vm_name}"); then
+        echo "already stopped"
+        return 1
+    else
+        kazoo_ecallmgr_pids=$(/bin/pgrep -ifU "${kazoo_ecallmgr_user}" "\-name ${vm_name}")
+        kill ${kazoo_ecallmgr_pids}
+        wait_for_pids ${kazoo_ecallmgr_pids}
+        retval=$?
+        echo "stopped"
+    fi
+    return "$retval"
+}
+
+kazoo_ecallmgr_restart()
+{
+    kazoo_ecallmgr_stop
+    kazoo_ecallmgr_start
+}
+
+kazoo_ecallmgr_status()
+{
+    for i in $(/bin/pgrep -ifU "${kazoo_ecallmgr_user}" "\-name ${vm_name}"); do
+        echo "${name} is running as $i"
+        "${supcommand}" -n "${vm_name}" kz_nodes status
+        RETVAL=$?
+    done
+
+    if [ ${RETVAL:-1} -eq 1 ]; then
+        echo "${vm_name} is not running (did you check your cookie?)!"
+    fi
+}
+
+kazoo_ecallmgr_ping()
+{
+    for i in $(/bin/pgrep -ifU "${kazoo_ecallmgr_user}" "\-name ${vm_name}"); do
+        set_cookie
+        su -m "${kazoo_ecallmgr_user}" -c "${startscript} ping"
+        RETVAL=$?
+    done
+
+    if [ ${RETVAL:-1} -eq 1 ]; then
+        echo "${vm_name} is not running (did you check your cookie?)!"
+    fi
+}
+
+kazoo_ecallmgr_connect()
+{
+    for i in $(/bin/pgrep -ifU "${kazoo_ecallmgr_user}" "\-name ${vm_name}"); do
+        set_cookie
+        su -m "${kazoo_ecallmgr_user}" -c "${startscript} remote_console"
+        RETVAL=$?
+    done
+
+    if [ ${RETVAL:-1} -eq 1 ]; then
+        echo "${vm_name} is not running (did you check your cookie?)!"
+    fi
+}
+
+kazoo_ecallmgr_attach()
+{
+    for i in $(/bin/pgrep -ifU "${kazoo_ecallmgr_user}" "\-name ${vm_name}"); do
+        set_cookie
+        echo "WARNING: You are now directly attached to the running ${vm_name} Erlang node."
+        echo "   It is safer to use: $0 connect"
+        su -m "${kazoo_ecallmgr_user}" -c "${startscript} attach"
+        RETVAL=$?
+    done
+
+    if [ ${RETVAL:-1} -eq 1 ]; then
+        echo "${vm_name} is not running (did you check your cookie?)!"
+    fi
+}
+
+set_cookie()
+{
+    export KAZOO_COOKIE="$("${supcommand}" -n "${vm_name}" erlang get_cookie | sed "s|'||g")"
+
+    RETVAL=$?
+}
+
+load_rc_config $name
+run_rc_command "$1"
