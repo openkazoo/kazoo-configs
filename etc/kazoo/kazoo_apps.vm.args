@@ -30,4 +30,4 @@
 
 -name kazoo_apps
 
--setcookie /usr/local/etc/kazoo/.erlang.cookie
+-setcookie change_me
