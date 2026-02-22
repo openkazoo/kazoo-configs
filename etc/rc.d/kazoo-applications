@@ -30,6 +30,20 @@ daemonpidfile="/var/run/kazoo/${vm_name}-daemon.pid"
 startscript="/usr/local/kazoo/bin/kazoo"
 supcommand="/usr/local/bin/sup"
 
+set_cookie()
+{
+    export KAZOO_COOKIE="$("${supcommand}" -n "${vm_name}" erlang get_cookie | sed "s|'||g")"
+
+    RETVAL=$?
+}
+
+kazoo_run() {
+    su -m "${kazoo_applications_user}" -c \
+        "VMARGS_PATH=/usr/local/etc/kazoo/${vm_name}.vm.args \
+        RELX_CONFIG_PATH=/usr/local/etc/kazoo/${vm_name}.config \
+        ${startscript} \"$@\""
+}
+
 kazoo_applications_start()
 {
     echo -n "Starting ${name}: "
@@ -74,6 +88,7 @@ kazoo_applications_status()
 {
     for i in $(/bin/pgrep -ifU "${kazoo_applications_user}" "\-name ${vm_name}"); do
         echo "${name} is running as $i"
+        set_cookie
         "${supcommand}" -n "${vm_name}" kz_nodes status
         RETVAL=$?
     done
@@ -86,8 +101,7 @@ kazoo_applications_status()
 kazoo_applications_ping()
 {
     for i in $(/bin/pgrep -ifU "${kazoo_applications_user}" "\-name ${vm_name}"); do
-        set_cookie
-        su -m "${kazoo_applications_user}" -c "${startscript} ping"
+        kazoo_run ping
         RETVAL=$?
     done
 
@@ -99,8 +113,7 @@ kazoo_applications_ping()
 kazoo_applications_connect()
 {
     for i in $(/bin/pgrep -ifU "${kazoo_applications_user}" "\-name ${vm_name}"); do
-        set_cookie
-        su -m "${kazoo_applications_user}" -c "${startscript} remote_console"
+        kazoo_run remote_console
         RETVAL=$?
     done
 
@@ -112,23 +125,15 @@ kazoo_applications_connect()
 kazoo_applications_attach()
 {
     for i in $(/bin/pgrep -ifU "${kazoo_applications_user}" "\-name ${vm_name}"); do
-        set_cookie
         echo "WARNING: You are now directly attached to the running ${vm_name} Erlang node."
         echo "   It is safer to use: $0 connect"
-        su -m "${kazoo_applications_user}" -c "${startscript} attach"
+        kazoo_run attach
         RETVAL=$?
     done
 
     if [ ${RETVAL:-1} -eq 1 ]; then
         echo "${vm_name} is not running (did you check your cookie?)!"
     fi
-}
-
-set_cookie()
-{
-    export KAZOO_COOKIE="$("${supcommand}" -n "${vm_name}" erlang get_cookie | sed "s|'||g")"
-
-    RETVAL=$?
 }
 
 load_rc_config $name
