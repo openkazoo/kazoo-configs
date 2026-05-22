@@ -1,0 +1,19 @@
+[Unit]
+Description=Kazoo core application: ecallmgr
+After=syslog.target network.target
+
+[Service]
+User=kazoo
+Group=daemon
+PermissionsStartOnly=true
+LimitNOFILE=65536
+LimitCORE=infinity
+Environment="VMARGS_PATH=/etc/kazoo/ecallmgr.vm.args"
+Environment="RELX_CONFIG_PATH=/etc/kazoo/ecallmgr.config"
+ExecStartPre=/usr/sbin/kazoo-ecallmgr prepare
+ExecStart=/usr/sbin/kazoo-ecallmgr start
+ExecStop=/usr/sbin/kazoo-ecallmgr stop
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

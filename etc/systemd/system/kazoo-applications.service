@@ -1,0 +1,19 @@
+[Unit]
+Description=Kazoo core applications
+After=syslog.target network.target
+
+[Service]
+User=kazoo
+Group=daemon
+PermissionsStartOnly=true
+LimitNOFILE=65536
+LimitCORE=infinity
+Environment="VMARGS_PATH=/etc/kazoo/kazoo_apps.vm.args"
+Environment="RELX_CONFIG_PATH=/etc/kazoo/kazoo_apps.config"
+ExecStartPre=/usr/sbin/kazoo-applications prepare
+ExecStart=/usr/sbin/kazoo-applications start
+ExecStop=/usr/sbin/kazoo-applications stop
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
